@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 2.x
+ * This is the source code of Telegram for Android v. 3.x.x
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -17,8 +17,8 @@ import android.view.SoundEffectConstants;
 import android.view.View;
 import android.view.ViewConfiguration;
 
-import org.telegram.android.AndroidUtilities;
-import org.telegram.android.support.widget.RecyclerView;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.support.widget.RecyclerView;
 import org.telegram.messenger.FileLog;
 
 import java.lang.reflect.Field;
@@ -49,7 +49,7 @@ public class RecyclerListView extends RecyclerView {
     }
 
     public interface OnItemLongClickListener {
-        void onItemClick(View view, int position);
+        boolean onItemClick(View view, int position);
     }
 
     public interface OnInterceptTouchListener {
@@ -97,8 +97,9 @@ public class RecyclerListView extends RecyclerView {
                 @Override
                 public void onLongPress(MotionEvent e) {
                     if (currentChildView != null && onItemLongClickListener != null) {
-                        currentChildView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
-                        onItemLongClickListener.onItemClick(currentChildView, currentChildPosition);
+                        if (onItemLongClickListener.onItemClick(currentChildView, currentChildPosition)) {
+                            currentChildView.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS);
+                        }
                     }
                 }
             });
@@ -164,7 +165,15 @@ public class RecyclerListView extends RecyclerView {
 
         @Override
         public void onRequestDisallowInterceptTouchEvent(boolean disallowIntercept) {
-
+            if (selectChildRunnable != null) {
+                AndroidUtilities.cancelRunOnUIThread(selectChildRunnable);
+                selectChildRunnable = null;
+            }
+            if (currentChildView != null) {
+                currentChildView.setPressed(false);
+                currentChildView = null;
+            }
+            interceptedByChild = false;
         }
     }
 

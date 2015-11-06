@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 1.3.2.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013.
+ * Copyright Nikolai Kudashov, 2013-2015.
  */
 
 package org.telegram.ui;
@@ -13,6 +13,7 @@ import android.animation.StateListAnimator;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.app.Dialog;
 import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.DialogInterface;
@@ -26,6 +27,7 @@ import android.graphics.Outline;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.support.annotation.NonNull;
 import android.text.Html;
 import android.text.Spannable;
 import android.text.TextUtils;
@@ -47,31 +49,31 @@ import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
-import org.telegram.android.AndroidUtilities;
-import org.telegram.android.AnimationCompat.AnimatorListenerAdapterProxy;
-import org.telegram.android.AnimationCompat.AnimatorSetProxy;
-import org.telegram.android.AnimationCompat.ObjectAnimatorProxy;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.AnimationCompat.AnimatorListenerAdapterProxy;
+import org.telegram.messenger.AnimationCompat.AnimatorSetProxy;
+import org.telegram.messenger.AnimationCompat.ObjectAnimatorProxy;
 import org.telegram.PhoneFormat.PhoneFormat;
-import org.telegram.android.MediaController;
-import org.telegram.android.UserObject;
+import org.telegram.messenger.MediaController;
+import org.telegram.messenger.UserObject;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.BuildVars;
-import org.telegram.android.LocaleController;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.FileLoader;
-import org.telegram.messenger.SerializedData;
-import org.telegram.messenger.TLObject;
-import org.telegram.messenger.TLRPC;
-import org.telegram.messenger.ConnectionsManager;
+import org.telegram.tgnet.ConnectionsManager;
+import org.telegram.tgnet.RequestDelegate;
+import org.telegram.tgnet.SerializedData;
+import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TLRPC;
 import org.telegram.messenger.FileLog;
-import org.telegram.android.MessagesController;
-import org.telegram.android.MessagesStorage;
-import org.telegram.android.NotificationCenter;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.MessagesStorage;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
-import org.telegram.messenger.RPCRequest;
 import org.telegram.messenger.UserConfig;
-import org.telegram.android.MessageObject;
+import org.telegram.messenger.MessageObject;
 import org.telegram.ui.Adapters.BaseFragmentAdapter;
-import org.telegram.android.AnimationCompat.ViewProxy;
+import org.telegram.messenger.AnimationCompat.ViewProxy;
 import org.telegram.ui.Cells.TextInfoCell;
 import org.telegram.ui.Cells.EmptyCell;
 import org.telegram.ui.Cells.HeaderCell;
@@ -103,6 +105,10 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     private ImageView writeButton;
     private AnimatorSetProxy writeButtonAnimation;
     private AvatarUpdater avatarUpdater = new AvatarUpdater();
+    private View extraHeightView;
+    private View shadowView;
+
+    private int extraHeight;
 
     private int overscrollRow;
     private int emptyRow;
@@ -145,7 +151,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
     private static class LinkMovementMethodMy extends LinkMovementMethod {
         @Override
-        public boolean onTouchEvent(TextView widget, Spannable buffer, MotionEvent event) {
+        public boolean onTouchEvent(@NonNull TextView widget, @NonNull Spannable buffer, @NonNull MotionEvent event) {
             try {
                 return super.onTouchEvent(widget, buffer, event);
             } catch (Exception e) {
@@ -167,7 +173,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 req.crop = new TLRPC.TL_inputPhotoCropAuto();
                 req.file = file;
                 req.geo_point = new TLRPC.TL_inputGeoPointEmpty();
-                ConnectionsManager.getInstance().performRpc(req, new RPCRequest.RPCRequestDelegate() {
+                ConnectionsManager.getInstance().sendRequest(req, new RequestDelegate() {
                     @Override
                     public void run(TLObject response, TLRPC.TL_error error) {
                         if (error == null) {
@@ -180,9 +186,6 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                                 MessagesController.getInstance().putUser(user, false);
                             } else {
                                 UserConfig.setCurrentUser(user);
-                            }
-                            if (user == null) {
-                                return;
                             }
                             TLRPC.TL_photos_photo photo = (TLRPC.TL_photos_photo) response;
                             ArrayList<TLRPC.PhotoSize> sizes = photo.photo.sizes;
@@ -272,16 +275,12 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    public boolean needAddActionBar() {
-        return false;
-    }
-
-    @Override
     public View createView(Context context) {
         actionBar.setBackgroundColor(AvatarDrawable.getProfileBackColorForId(5));
         actionBar.setItemsBackground(AvatarDrawable.getButtonColorForId(5));
         actionBar.setBackButtonImage(R.drawable.ic_ab_back);
-        actionBar.setExtraHeight(AndroidUtilities.dp(88), false);
+        actionBar.setAddToContainer(false);
+        extraHeight = 88;
         if (AndroidUtilities.isTablet()) {
             actionBar.setOccupyStatusBar(false);
         }
@@ -319,7 +318,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         fragmentView = new FrameLayout(context) {
             @Override
-            protected boolean drawChild(Canvas canvas, View child, long drawingTime) {
+            protected boolean drawChild(@NonNull Canvas canvas, @NonNull View child, long drawingTime) {
                 if (child == listView) {
                     boolean result = super.drawChild(canvas, child, drawingTime);
                     if (parentLayout != null) {
@@ -346,41 +345,6 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             }
         };
         FrameLayout frameLayout = (FrameLayout) fragmentView;
-
-        avatarImage = new BackupImageView(context);
-        avatarImage.setRoundRadius(AndroidUtilities.dp(30));
-        actionBar.addView(avatarImage, LayoutHelper.createFrame(60, 60, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, LocaleController.isRTL ? 0 : 17, 0, LocaleController.isRTL ? 17 : 0, 22));
-        avatarImage.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                TLRPC.User user = MessagesController.getInstance().getUser(UserConfig.getClientUserId());
-                if (user.photo != null && user.photo.photo_big != null) {
-                    PhotoViewer.getInstance().setParentActivity(getParentActivity());
-                    PhotoViewer.getInstance().openPhoto(user.photo.photo_big, SettingsActivity.this);
-                }
-            }
-        });
-
-        nameTextView = new TextView(context);
-        nameTextView.setTextColor(0xffffffff);
-        nameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 20);
-        nameTextView.setLines(1);
-        nameTextView.setMaxLines(1);
-        nameTextView.setSingleLine(true);
-        nameTextView.setEllipsize(TextUtils.TruncateAt.END);
-        nameTextView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT));
-        nameTextView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
-        actionBar.addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, LocaleController.isRTL ? 16 : 97, 0, LocaleController.isRTL ? 97 : 16, 51));
-
-        onlineTextView = new TextView(context);
-        onlineTextView.setTextColor(AvatarDrawable.getProfileTextColorForId(5));
-        onlineTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
-        onlineTextView.setLines(1);
-        onlineTextView.setMaxLines(1);
-        onlineTextView.setSingleLine(true);
-        onlineTextView.setEllipsize(TextUtils.TruncateAt.END);
-        onlineTextView.setGravity((LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT));
-        actionBar.addView(onlineTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.RIGHT : Gravity.LEFT) | Gravity.BOTTOM, LocaleController.isRTL ? 16 : 97, 0, LocaleController.isRTL ? 97 : 16, 30));
 
         listView = new ListView(context);
         listView.setDivider(null);
@@ -495,7 +459,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                         FileLog.e("tmessages", e);
                     }
                 } else if (i == contactsReimportRow) {
-
+                    //not implemented
                 } else if (i == contactsSortRow) {
                     if (getParentActivity() == null) {
                         return;
@@ -601,6 +565,54 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         frameLayout.addView(actionBar);
 
+        extraHeightView = new View(context);
+        ViewProxy.setPivotY(extraHeightView, 0);
+        extraHeightView.setBackgroundColor(AvatarDrawable.getProfileBackColorForId(5));
+        frameLayout.addView(extraHeightView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 88));
+
+        shadowView = new View(context);
+        shadowView.setBackgroundResource(R.drawable.header_shadow);
+        frameLayout.addView(shadowView, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 3));
+
+        avatarImage = new BackupImageView(context);
+        avatarImage.setRoundRadius(AndroidUtilities.dp(21));
+        ViewProxy.setPivotX(avatarImage, 0);
+        ViewProxy.setPivotY(avatarImage, 0);
+        frameLayout.addView(avatarImage, LayoutHelper.createFrame(42, 42, Gravity.TOP | Gravity.LEFT, 64, 0, 0, 0));
+        avatarImage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                TLRPC.User user = MessagesController.getInstance().getUser(UserConfig.getClientUserId());
+                if (user.photo != null && user.photo.photo_big != null) {
+                    PhotoViewer.getInstance().setParentActivity(getParentActivity());
+                    PhotoViewer.getInstance().openPhoto(user.photo.photo_big, SettingsActivity.this);
+                }
+            }
+        });
+
+        nameTextView = new TextView(context);
+        nameTextView.setTextColor(0xffffffff);
+        nameTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 18);
+        nameTextView.setLines(1);
+        nameTextView.setMaxLines(1);
+        nameTextView.setSingleLine(true);
+        nameTextView.setEllipsize(TextUtils.TruncateAt.END);
+        nameTextView.setGravity(Gravity.LEFT);
+        nameTextView.setTypeface(AndroidUtilities.getTypeface("fonts/rmedium.ttf"));
+        ViewProxy.setPivotX(nameTextView, 0);
+        ViewProxy.setPivotY(nameTextView, 0);
+        frameLayout.addView(nameTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 118, 0, 48, 0));
+
+        onlineTextView = new TextView(context);
+        onlineTextView.setTextColor(AvatarDrawable.getProfileTextColorForId(5));
+        onlineTextView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+        onlineTextView.setLines(1);
+        onlineTextView.setMaxLines(1);
+        onlineTextView.setSingleLine(true);
+        onlineTextView.setEllipsize(TextUtils.TruncateAt.END);
+        onlineTextView.setGravity(Gravity.LEFT);
+        frameLayout.addView(onlineTextView, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.LEFT | Gravity.TOP, 118, 0, 48, 0));
+
         writeButton = new ImageView(context);
         writeButton.setBackgroundResource(R.drawable.floating_user_states);
         writeButton.setImageResource(R.drawable.floating_camera);
@@ -618,7 +630,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 }
             });
         }
-        frameLayout.addView(writeButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, (LocaleController.isRTL ? Gravity.LEFT : Gravity.RIGHT) | Gravity.TOP, LocaleController.isRTL ? 16 : 0, 0, LocaleController.isRTL ? 0 : 16, 0));
+        frameLayout.addView(writeButton, LayoutHelper.createFrame(LayoutHelper.WRAP_CONTENT, LayoutHelper.WRAP_CONTENT, Gravity.RIGHT | Gravity.TOP, 0, 0, 16, 0));
         writeButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -661,6 +673,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             }
         });
 
+        needLayout();
+
         listView.setOnScrollListener(new AbsListView.OnScrollListener() {
             @Override
             public void onScrollStateChanged(AbsListView view, int scrollState) {
@@ -678,8 +692,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                     if (firstVisibleItem == 0) {
                         height = AndroidUtilities.dp(88) + (child.getTop() < 0 ? child.getTop() : 0);
                     }
-                    if (actionBar.getExtraHeight() != height) {
-                        actionBar.setExtraHeight(height, true);
+                    if (extraHeight != height) {
+                        extraHeight = height;
                         needLayout();
                     }
                 }
@@ -690,7 +704,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    protected void onDialogDismiss() {
+    protected void onDialogDismiss(Dialog dialog) {
         MediaController.getInstance().checkAutodownloadSettings();
     }
 
@@ -719,6 +733,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 object.thumb = object.imageReceiver.getBitmap();
                 object.size = -1;
                 object.radius = avatarImage.getImageReceiver().getRoundRadius();
+                object.scale = ViewProxy.getScaleX(avatarImage);
                 return object;
             }
         }
@@ -749,7 +764,8 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
     }
 
     @Override
-    public void cancelButtonPressed() {
+    public boolean cancelButtonPressed() {
+        return true;
     }
 
     @Override
@@ -794,7 +810,7 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
             progressDialog.setCancelable(false);
             progressDialog.show();
             TLRPC.TL_help_getSupport req = new TLRPC.TL_help_getSupport();
-            ConnectionsManager.getInstance().performRpc(req, new RPCRequest.RPCRequestDelegate() {
+            ConnectionsManager.getInstance().sendRequest(req, new RequestDelegate() {
                 @Override
                 public void run(TLObject response, TLRPC.TL_error error) {
                     if (error == null) {
@@ -893,32 +909,29 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
     private void needLayout() {
         FrameLayout.LayoutParams layoutParams;
+        int newTop = (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight();
         if (listView != null) {
             layoutParams = (FrameLayout.LayoutParams) listView.getLayoutParams();
-            layoutParams.topMargin = (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight();
-            listView.setLayoutParams(layoutParams);
+            if (layoutParams.topMargin != newTop) {
+                layoutParams.topMargin = newTop;
+                listView.setLayoutParams(layoutParams);
+                ViewProxy.setTranslationY(extraHeightView, newTop);
+            }
         }
 
         if (avatarImage != null) {
-            float diff = actionBar.getExtraHeight() / (float) AndroidUtilities.dp(88);
-            float diffm = 1.0f - diff;
+            float diff = extraHeight / (float) AndroidUtilities.dp(88);
+            ViewProxy.setScaleY(extraHeightView, diff);
+            ViewProxy.setTranslationY(shadowView, newTop + extraHeight);
 
-            int avatarSize = 42 + (int) (18 * diff);
-            int avatarX = 17 + (int) (47 * diffm);
-            int avatarY = AndroidUtilities.dp(22) - (int) ((AndroidUtilities.dp(22) - (ActionBar.getCurrentActionBarHeight() - AndroidUtilities.dp(42)) / 2) * (1.0f - diff));
-            int nameX = 97 + (int) (21 * diffm);
-            int nameEndX = 16 + (int) (32 * diffm);
-            int nameY = avatarY + AndroidUtilities.dp(29 - 13 * diffm);
-            int statusY = avatarY + AndroidUtilities.dp(8 - 7 * diffm);
-            float scale = 1.0f - 0.12f * diffm;
+            if (Build.VERSION.SDK_INT < 11) {
+                layoutParams = (FrameLayout.LayoutParams) writeButton.getLayoutParams();
+                layoutParams.topMargin = (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() + extraHeight - AndroidUtilities.dp(29.5f);
+                writeButton.setLayoutParams(layoutParams);
+            } else {
+                ViewProxy.setTranslationY(writeButton, (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() + extraHeight - AndroidUtilities.dp(29.5f));
+            }
 
-            layoutParams = (FrameLayout.LayoutParams) writeButton.getLayoutParams();
-            layoutParams.topMargin = (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() + actionBar.getExtraHeight() - AndroidUtilities.dp(29.5f);
-            writeButton.setLayoutParams(layoutParams);
-
-            //ViewProxy.setScaleX(writeButton, diff > 0.2f ? 1.0f : diff / 0.2f);
-            //ViewProxy.setScaleY(writeButton, diff > 0.2f ? 1.0f : diff / 0.2f);
-            //ViewProxy.setAlpha(writeButton, diff > 0.2f ? 1.0f : diff / 0.2f);
             final boolean setVisible = diff > 0.2f;
             boolean currentVisible = writeButton.getTag() == null;
             if (setVisible != currentVisible) {
@@ -963,30 +976,17 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 writeButtonAnimation.start();
             }
 
-            avatarImage.setRoundRadius(AndroidUtilities.dp(avatarSize / 2));
-            layoutParams = (FrameLayout.LayoutParams) avatarImage.getLayoutParams();
-            layoutParams.width = AndroidUtilities.dp(avatarSize);
-            layoutParams.height = AndroidUtilities.dp(avatarSize);
-            layoutParams.leftMargin = LocaleController.isRTL ? 0 : AndroidUtilities.dp(avatarX);
-            layoutParams.rightMargin = LocaleController.isRTL ? AndroidUtilities.dp(avatarX) : 0;
-            layoutParams.bottomMargin = avatarY;
-            avatarImage.setLayoutParams(layoutParams);
-
-            ViewProxy.setPivotX(nameTextView, 0);
-            ViewProxy.setPivotY(nameTextView, 0);
-            ViewProxy.setScaleX(nameTextView, scale);
-            ViewProxy.setScaleY(nameTextView, scale);
-            layoutParams = (FrameLayout.LayoutParams) nameTextView.getLayoutParams();
-            layoutParams.leftMargin = AndroidUtilities.dp(LocaleController.isRTL ? nameEndX : nameX);
-            layoutParams.rightMargin = AndroidUtilities.dp(LocaleController.isRTL ? nameX : nameEndX);
-            layoutParams.bottomMargin = nameY;
-            nameTextView.setLayoutParams(layoutParams);
-
-            layoutParams = (FrameLayout.LayoutParams) onlineTextView.getLayoutParams();
-            layoutParams.leftMargin = AndroidUtilities.dp(LocaleController.isRTL ? nameEndX : nameX);
-            layoutParams.rightMargin = AndroidUtilities.dp(LocaleController.isRTL ? nameX : nameEndX);
-            layoutParams.bottomMargin = statusY;
-            onlineTextView.setLayoutParams(layoutParams);
+            ViewProxy.setScaleX(avatarImage, (42 + 18 * diff) / 42.0f);
+            ViewProxy.setScaleY(avatarImage, (42 + 18 * diff) / 42.0f);
+            float avatarY = (actionBar.getOccupyStatusBar() ? AndroidUtilities.statusBarHeight : 0) + ActionBar.getCurrentActionBarHeight() / 2.0f * (1.0f + diff) - 21 * AndroidUtilities.density + 27 * AndroidUtilities.density * diff;
+            ViewProxy.setTranslationX(avatarImage, -AndroidUtilities.dp(47) * diff);
+            ViewProxy.setTranslationY(avatarImage, (float) Math.ceil(avatarY));
+            ViewProxy.setTranslationX(nameTextView, -21 * AndroidUtilities.density * diff);
+            ViewProxy.setTranslationY(nameTextView, (float) Math.floor(avatarY) - (float) Math.ceil(AndroidUtilities.density) + (float) Math.floor(7 * AndroidUtilities.density * diff));
+            ViewProxy.setTranslationX(onlineTextView, -21 * AndroidUtilities.density * diff);
+            ViewProxy.setTranslationY(onlineTextView, (float) Math.floor(avatarY) + AndroidUtilities.dp(22) + (float )Math.floor(11 * AndroidUtilities.density) * diff);
+            ViewProxy.setScaleX(nameTextView, 1.0f + 0.12f * diff);
+            ViewProxy.setScaleY(nameTextView, 1.0f + 0.12f * diff);
         }
     }
 

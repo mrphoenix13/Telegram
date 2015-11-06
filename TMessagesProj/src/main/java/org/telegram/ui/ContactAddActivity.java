@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 1.3.2.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013.
+ * Copyright Nikolai Kudashov, 2013-2015.
  */
 
 package org.telegram.ui;
@@ -26,14 +26,14 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import org.telegram.android.AndroidUtilities;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.PhoneFormat.PhoneFormat;
-import org.telegram.android.ContactsController;
-import org.telegram.android.LocaleController;
+import org.telegram.messenger.ContactsController;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.ApplicationLoader;
-import org.telegram.messenger.TLRPC;
-import org.telegram.android.MessagesController;
-import org.telegram.android.NotificationCenter;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -297,8 +297,10 @@ public class ContactAddActivity extends BaseFragment implements NotificationCent
     }
 
     @Override
-    public void onOpenAnimationEnd() {
-        firstNameField.requestFocus();
-        AndroidUtilities.showKeyboard(firstNameField);
+    public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
+        if (isOpen) {
+            firstNameField.requestFocus();
+            AndroidUtilities.showKeyboard(firstNameField);
+        }
     }
 }

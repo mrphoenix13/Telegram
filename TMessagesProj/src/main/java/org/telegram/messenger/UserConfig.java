@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 2.x.x.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -12,7 +12,8 @@ import android.content.Context;
 import android.content.SharedPreferences;
 import android.util.Base64;
 
-import org.telegram.android.MessagesStorage;
+import org.telegram.tgnet.SerializedData;
+import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
 
@@ -20,7 +21,6 @@ public class UserConfig {
 
     private static TLRPC.User currentUser;
     public static boolean registeredForPush = false;
-    public static boolean registeredForInternalPush = false;
     public static String pushString = "";
     public static int lastSendMessageId = -210000;
     public static int lastLocalId = -210000;
@@ -38,8 +38,10 @@ public class UserConfig {
     public static int autoLockIn = 60 * 60;
     public static int lastPauseTime = 0;
     public static boolean isWaitingForPasscodeEnter = false;
+    public static boolean useFingerprint = true;
     public static int lastUpdateVersion;
     public static int lastContactsSyncTime;
+    public static boolean channelsLoaded = false;
 
     public static int getNewMessageId() {
         int id;
@@ -68,7 +70,6 @@ public class UserConfig {
                 editor.putBoolean("saveIncomingPhotos", saveIncomingPhotos);
                 editor.putInt("contactsVersion", contactsVersion);
                 editor.putInt("lastBroadcastId", lastBroadcastId);
-                editor.putBoolean("registeredForInternalPush", registeredForInternalPush);
                 editor.putBoolean("blockedUsersLoaded", blockedUsersLoaded);
                 editor.putString("passcodeHash1", passcodeHash);
                 editor.putString("passcodeSalt", passcodeSalt.length > 0 ? Base64.encodeToString(passcodeSalt, Base64.DEFAULT) : "");
@@ -78,6 +79,8 @@ public class UserConfig {
                 editor.putInt("lastPauseTime", lastPauseTime);
                 editor.putInt("lastUpdateVersion", lastUpdateVersion);
                 editor.putInt("lastContactsSyncTime", lastContactsSyncTime);
+                editor.putBoolean("channelsLoaded", channelsLoaded);
+                editor.putBoolean("useFingerprint", useFingerprint);
 
                 if (currentUser != null) {
                     if (withFile) {
@@ -127,7 +130,7 @@ public class UserConfig {
 
     public static void loadConfig() {
         synchronized (sync) {
-            final File configFile = new File(ApplicationLoader.applicationContext.getFilesDir(), "user.dat");
+            final File configFile = new File(ApplicationLoader.getFilesDirFixed(), "user.dat");
             if (configFile.exists()) {
                 try {
                     SerializedData data = new SerializedData(configFile);
@@ -200,15 +203,16 @@ public class UserConfig {
                 saveIncomingPhotos = preferences.getBoolean("saveIncomingPhotos", false);
                 contactsVersion = preferences.getInt("contactsVersion", 0);
                 lastBroadcastId = preferences.getInt("lastBroadcastId", -1);
-                registeredForInternalPush = preferences.getBoolean("registeredForInternalPush", false);
                 blockedUsersLoaded = preferences.getBoolean("blockedUsersLoaded", false);
                 passcodeHash = preferences.getString("passcodeHash1", "");
                 appLocked = preferences.getBoolean("appLocked", false);
                 passcodeType = preferences.getInt("passcodeType", 0);
                 autoLockIn = preferences.getInt("autoLockIn", 60 * 60);
                 lastPauseTime = preferences.getInt("lastPauseTime", 0);
+                useFingerprint = preferences.getBoolean("useFingerprint", true);
                 lastUpdateVersion = preferences.getInt("lastUpdateVersion", 511);
                 lastContactsSyncTime = preferences.getInt("lastContactsSyncTime", (int) (System.currentTimeMillis() / 1000) - 23 * 60 * 60);
+                channelsLoaded = preferences.getBoolean("channelsLoaded", false);
                 String user = preferences.getString("user", null);
                 if (user != null) {
                     byte[] userBytes = Base64.decode(user, Base64.DEFAULT);
@@ -265,7 +269,6 @@ public class UserConfig {
 
     public static void clearConfig() {
         currentUser = null;
-        registeredForInternalPush = false;
         registeredForPush = false;
         contactsHash = "";
         importHash = "";
@@ -274,12 +277,14 @@ public class UserConfig {
         lastBroadcastId = -1;
         saveIncomingPhotos = false;
         blockedUsersLoaded = false;
+        channelsLoaded = false;
         appLocked = false;
         passcodeType = 0;
         passcodeHash = "";
         passcodeSalt = new byte[0];
         autoLockIn = 60 * 60;
         lastPauseTime = 0;
+        useFingerprint = true;
         isWaitingForPasscodeEnter = false;
         lastUpdateVersion = BuildVars.BUILD_VERSION;
         lastContactsSyncTime = (int) (System.currentTimeMillis() / 1000) - 23 * 60 * 60;

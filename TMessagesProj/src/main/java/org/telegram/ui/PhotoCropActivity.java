@@ -3,7 +3,7 @@
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013.
+ * Copyright Nikolai Kudashov, 2013-2015.
  */
 
 package org.telegram.ui;
@@ -20,10 +20,11 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.widget.FrameLayout;
 
-import org.telegram.android.AndroidUtilities;
-import org.telegram.android.ImageLoader;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.Bitmaps;
+import org.telegram.messenger.ImageLoader;
 import org.telegram.messenger.FileLog;
-import org.telegram.android.LocaleController;
+import org.telegram.messenger.LocaleController;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -35,7 +36,7 @@ import java.io.File;
 public class PhotoCropActivity extends BaseFragment {
 
     public interface PhotoEditActivityDelegate {
-        void didFinishEdit(Bitmap bitmap, Bundle args);
+        void didFinishEdit(Bitmap bitmap);
     }
 
     private class PhotoCropView extends FrameLayout {
@@ -315,12 +316,12 @@ public class PhotoCropActivity extends BaseFragment {
                 sizeY = imageToCrop.getHeight() - y;
             }
             try {
-                return Bitmap.createBitmap(imageToCrop, x, y, sizeX, sizeY);
+                return Bitmaps.createBitmap(imageToCrop, x, y, sizeX, sizeY);
             } catch (Throwable e) {
                 FileLog.e("tmessags", e);
                 System.gc();
                 try {
-                    return Bitmap.createBitmap(imageToCrop, x, y, sizeX, sizeY);
+                    return Bitmaps.createBitmap(imageToCrop, x, y, sizeX, sizeY);
                 } catch (Throwable e2) {
                     FileLog.e("tmessages", e2);
                 }
@@ -331,8 +332,12 @@ public class PhotoCropActivity extends BaseFragment {
         @Override
         protected void onDraw(Canvas canvas) {
             if (drawable != null) {
-                drawable.setBounds(bitmapX, bitmapY, bitmapX + bitmapWidth, bitmapY + bitmapHeight);
-                drawable.draw(canvas);
+                try {
+                    drawable.setBounds(bitmapX, bitmapY, bitmapX + bitmapWidth, bitmapY + bitmapHeight);
+                    drawable.draw(canvas);
+                } catch (Throwable e) {
+                    FileLog.e("tmessages", e);
+                }
             }
             canvas.drawRect(bitmapX, bitmapY, bitmapX + bitmapWidth, rectY, halfPaint);
             canvas.drawRect(bitmapX, rectY, rectX, rectY + rectSizeY, halfPaint);
@@ -375,15 +380,6 @@ public class PhotoCropActivity extends BaseFragment {
         super(args);
     }
 
-    public PhotoCropActivity(Bundle args, Bitmap bitmap, String key) {
-        super(args);
-        imageToCrop = bitmap;
-        bitmapKey = key;
-        if (imageToCrop != null && key != null) {
-            ImageLoader.getInstance().incrementUseCount(key);
-        }
-    }
-
     @Override
     public boolean onFragmentCreate() {
         swipeBackEnabled = false;
@@ -418,7 +414,6 @@ public class PhotoCropActivity extends BaseFragment {
     @Override
     public void onFragmentDestroy() {
         super.onFragmentDestroy();
-        drawable = null;
         if (bitmapKey != null) {
             if (ImageLoader.getInstance().decrementUseCount(bitmapKey) && !ImageLoader.getInstance().isInCache(bitmapKey)) {
                 bitmapKey = null;
@@ -428,6 +423,7 @@ public class PhotoCropActivity extends BaseFragment {
             imageToCrop.recycle();
             imageToCrop = null;
         }
+        drawable = null;
     }
 
     @Override
@@ -448,7 +444,7 @@ public class PhotoCropActivity extends BaseFragment {
                         if (bitmap == imageToCrop) {
                             sameBitmap = true;
                         }
-                        delegate.didFinishEdit(bitmap, getArguments());
+                        delegate.didFinishEdit(bitmap);
                         doneButtonPressed = true;
                     }
                     finishFragment();

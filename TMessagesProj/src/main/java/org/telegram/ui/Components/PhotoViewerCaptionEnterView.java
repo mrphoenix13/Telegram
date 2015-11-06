@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 2.x
+ * This is the source code of Telegram for Android v. 3.x.x
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -24,16 +24,16 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-import org.telegram.android.AndroidUtilities;
-import org.telegram.android.Emoji;
-import org.telegram.android.LocaleController;
-import org.telegram.android.NotificationCenter;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.Emoji;
+import org.telegram.messenger.LocaleController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
-import org.telegram.messenger.TLRPC;
-import org.telegram.android.AnimationCompat.AnimatorSetProxy;
-import org.telegram.android.AnimationCompat.ObjectAnimatorProxy;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.messenger.AnimationCompat.AnimatorSetProxy;
+import org.telegram.messenger.AnimationCompat.ObjectAnimatorProxy;
 
 public class PhotoViewerCaptionEnterView extends FrameLayoutFixed implements NotificationCenter.NotificationCenterDelegate, SizeNotifierFrameLayoutPhoto.SizeNotifierFrameLayoutPhotoDelegate {
 

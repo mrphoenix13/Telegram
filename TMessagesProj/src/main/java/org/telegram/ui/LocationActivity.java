@@ -1,18 +1,24 @@
 /*
- * This is the source code of Telegram for Android v. 1.3.2.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013.
+ * Copyright Nikolai Kudashov, 2013-2015.
  */
 
 package org.telegram.ui;
 
+import android.Manifest;
 import android.animation.AnimatorSet;
 import android.animation.ObjectAnimator;
 import android.animation.StateListAnimator;
+import android.annotation.TargetApi;
+import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.graphics.Outline;
 import android.location.Location;
 import android.location.LocationManager;
@@ -25,7 +31,6 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
-import android.view.WindowManager;
 import android.widget.AbsListView;
 import android.widget.AdapterView;
 import android.widget.EditText;
@@ -46,15 +51,15 @@ import com.google.android.gms.maps.model.CircleOptions;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.MarkerOptions;
 
-import org.telegram.android.AndroidUtilities;
-import org.telegram.android.UserObject;
+import org.telegram.messenger.AndroidUtilities;
+import org.telegram.messenger.UserObject;
 import org.telegram.messenger.ApplicationLoader;
 import org.telegram.messenger.FileLog;
-import org.telegram.android.LocaleController;
-import org.telegram.messenger.TLRPC;
-import org.telegram.android.MessageObject;
-import org.telegram.android.MessagesController;
-import org.telegram.android.NotificationCenter;
+import org.telegram.messenger.LocaleController;
+import org.telegram.tgnet.TLRPC;
+import org.telegram.messenger.MessageObject;
+import org.telegram.messenger.MessagesController;
+import org.telegram.messenger.NotificationCenter;
 import org.telegram.messenger.R;
 import org.telegram.ui.ActionBar.ActionBar;
 import org.telegram.ui.ActionBar.ActionBarMenu;
@@ -91,6 +96,8 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
 
     private AnimatorSet animatorSet;
 
+    private boolean checkPermission = true;
+
     private boolean searching;
     private boolean searchWas;
 
@@ -116,11 +123,6 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
 
     public interface LocationActivityDelegate {
         void didSelectLocation(TLRPC.MessageMedia location);
-    }
-
-    @Override
-    public boolean needAddActionBar() {
-        return messageObject != null;
     }
 
     @Override
@@ -157,6 +159,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         if (AndroidUtilities.isTablet()) {
             actionBar.setOccupyStatusBar(false);
         }
+        actionBar.setAddToContainer(messageObject != null);
 
         actionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override
@@ -294,7 +297,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                     if (userLocation != null) {
                         LatLng latLng = new LatLng(userLocation.getLatitude(), userLocation.getLongitude());
                         if (googleMap != null) {
-                            CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 8);
+                            CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 4);
                             googleMap.animateCamera(position);
                         }
                     }
@@ -334,7 +337,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                 } catch (Exception e) {
                     FileLog.e("tmessages", e);
                 }
-                CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 8);
+                CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 4);
                 googleMap.moveCamera(position);
             }
 
@@ -373,8 +376,17 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
             locationButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    if (Build.VERSION.SDK_INT >= 23) {
+                        Activity activity = getParentActivity();
+                        if (activity != null) {
+                            if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                                showPermissionAlert();
+                                return;
+                            }
+                        }
+                    }
                     if (myLocation != null && googleMap != null) {
-                        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), googleMap.getMaxZoomLevel() - 8));
+                        googleMap.animateCamera(CameraUpdateFactory.newLatLngZoom(new LatLng(myLocation.getLatitude(), myLocation.getLongitude()), googleMap.getMaxZoomLevel() - 4));
                     }
                 }
             });
@@ -517,6 +529,15 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
             locationButton.setOnClickListener(new View.OnClickListener() {
                 @Override
                 public void onClick(View v) {
+                    if (Build.VERSION.SDK_INT >= 23) {
+                        Activity activity = getParentActivity();
+                        if (activity != null) {
+                            if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                                showPermissionAlert();
+                                return;
+                            }
+                        }
+                    }
                     if (myLocation != null && googleMap != null) {
                         if (Build.VERSION.SDK_INT >= 11) {
                             AnimatorSet animatorSet = new AnimatorSet();
@@ -615,21 +636,50 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         return fragmentView;
     }
 
-    @Override
-    public void onOpenAnimationEnd() {
-        try {
-            if (mapView.getParent() instanceof ViewGroup) {
-                ViewGroup viewGroup = (ViewGroup) mapView.getParent();
-                viewGroup.removeView(mapView);
-            }
-        } catch (Exception e) {
-            FileLog.e("tmessages", e);
+    private void showPermissionAlert() {
+        if (getParentActivity() == null) {
+            return;
         }
-        if (mapViewClip != null) {
-            mapViewClip.addView(mapView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, overScrollHeight + AndroidUtilities.dp(10), Gravity.TOP | Gravity.LEFT));
-            updateClipView(listView.getFirstVisiblePosition());
-        } else {
-            ((FrameLayout) fragmentView).addView(mapView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+        AlertDialog.Builder builder = new AlertDialog.Builder(getParentActivity());
+        builder.setTitle(LocaleController.getString("AppName", R.string.AppName));
+        builder.setMessage(LocaleController.getString("PermissionNoLocation", R.string.PermissionNoLocation));
+        builder.setNegativeButton(LocaleController.getString("PermissionOpenSettings", R.string.PermissionOpenSettings), new DialogInterface.OnClickListener() {
+            @TargetApi(Build.VERSION_CODES.GINGERBREAD)
+            @Override
+            public void onClick(DialogInterface dialog, int which) {
+                if (getParentActivity() == null) {
+                    return;
+                }
+                try {
+                    Intent intent = new Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS);
+                    intent.setData(Uri.parse("package:" + ApplicationLoader.applicationContext.getPackageName()));
+                    getParentActivity().startActivity(intent);
+                } catch (Exception e) {
+                    FileLog.e("tmessages", e);
+                }
+            }
+        });
+        builder.setPositiveButton(LocaleController.getString("OK", R.string.OK), null);
+        showDialog(builder.create());
+    }
+
+    @Override
+    public void onTransitionAnimationEnd(boolean isOpen, boolean backward) {
+        if (isOpen) {
+            try {
+                if (mapView.getParent() instanceof ViewGroup) {
+                    ViewGroup viewGroup = (ViewGroup) mapView.getParent();
+                    viewGroup.removeView(mapView);
+                }
+            } catch (Exception e) {
+                FileLog.e("tmessages", e);
+            }
+            if (mapViewClip != null) {
+                mapViewClip.addView(mapView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, overScrollHeight + AndroidUtilities.dp(10), Gravity.TOP | Gravity.LEFT));
+                updateClipView(listView.getFirstVisiblePosition());
+            } else {
+                ((FrameLayout) fragmentView).addView(mapView, 0, LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, LayoutHelper.MATCH_PARENT, Gravity.TOP | Gravity.LEFT));
+            }
         }
     }
 
@@ -757,16 +807,37 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
         if (messageObject != null && avatarImageView != null) {
             int fromId = messageObject.messageOwner.from_id;
             if (messageObject.isForwarded()) {
-                fromId = messageObject.messageOwner.fwd_from_id;
-            }
-            TLRPC.User user = MessagesController.getInstance().getUser(fromId);
-            if (user != null) {
-                TLRPC.FileLocation photo = null;
-                if (user.photo != null) {
-                    photo = user.photo.photo_small;
+                if (messageObject.messageOwner.fwd_from_id.user_id != 0) {
+                    fromId = messageObject.messageOwner.fwd_from_id.user_id;
+                } else {
+                    fromId = -messageObject.messageOwner.fwd_from_id.channel_id;
                 }
-                avatarImageView.setImage(photo, null, new AvatarDrawable(user));
-                nameTextView.setText(UserObject.getUserName(user));
+            }
+            String name = "";
+            TLRPC.FileLocation photo = null;
+            AvatarDrawable avatarDrawable = null;
+            if (fromId > 0) {
+                TLRPC.User user = MessagesController.getInstance().getUser(fromId);
+                if (user != null) {
+                    if (user.photo != null) {
+                        photo = user.photo.photo_small;
+                    }
+                    avatarDrawable = new AvatarDrawable(user);
+                    name = UserObject.getUserName(user);
+                }
+            } else {
+                TLRPC.Chat chat = MessagesController.getInstance().getChat(-fromId);
+                if (chat != null) {
+                    if (chat.photo != null) {
+                        photo = chat.photo.photo_small;
+                    }
+                    avatarDrawable = new AvatarDrawable(chat);
+                    name = chat.title;
+                }
+            }
+            if (avatarDrawable != null) {
+                avatarImageView.setImage(photo, null, avatarDrawable);
+                nameTextView.setText(name);
             } else {
                 avatarImageView.setImageDrawable(null);
             }
@@ -800,7 +871,7 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
                     googleMap.animateCamera(position);
                 } else {
                     firstWas = true;
-                    CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 8);
+                    CameraUpdate position = CameraUpdateFactory.newLatLngZoom(latLng, googleMap.getMaxZoomLevel() - 4);
                     googleMap.moveCamera(position);
                 }
             }
@@ -838,14 +909,21 @@ public class LocationActivity extends BaseFragment implements NotificationCenter
     @Override
     public void onResume() {
         super.onResume();
-        if (!AndroidUtilities.isTablet()) {
-            getParentActivity().getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
-        }
+        AndroidUtilities.removeAdjustResize(getParentActivity(), classGuid);
         if (mapView != null) {
             mapView.onResume();
         }
         updateUserData();
         fixLayoutInternal(true);
+        if (checkPermission && Build.VERSION.SDK_INT >= 23) {
+            Activity activity = getParentActivity();
+            if (activity != null) {
+                checkPermission = false;
+                if (activity.checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+                    activity.requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION, Manifest.permission.ACCESS_FINE_LOCATION}, 2);
+                }
+            }
+        }
     }
 
     @Override

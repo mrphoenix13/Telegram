@@ -1,9 +1,9 @@
 /*
- * This is the source code of Telegram for Android v. 1.4.x.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
- * Copyright Nikolai Kudashov, 2013-2014.
+ * Copyright Nikolai Kudashov, 2013-2015.
  */
 
 //Thanks to https://github.com/JakeWharton/ActionBarSherlock/
@@ -27,7 +27,7 @@ import android.widget.LinearLayout;
 import android.widget.PopupWindow;
 import android.widget.ScrollView;
 
-import org.telegram.android.AndroidUtilities;
+import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.FileLog;
 import org.telegram.messenger.R;
 import org.telegram.ui.Components.LayoutHelper;

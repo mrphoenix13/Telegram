@@ -1,5 +1,5 @@
 /*
- * This is the source code of Telegram for Android v. 2.x.x.
+ * This is the source code of Telegram for Android v. 3.x.x.
  * It is licensed under GNU GPL v. 2 or later.
  * You should have received a copy of the license in this archive (see LICENSE).
  *
@@ -8,7 +8,8 @@
 
 package org.telegram.messenger;
 
-import org.telegram.android.AndroidUtilities;
+import org.telegram.tgnet.TLObject;
+import org.telegram.tgnet.TLRPC;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -22,7 +23,7 @@ public class FileLoader {
     public interface FileLoaderDelegate {
         void fileUploadProgressChanged(String location, float progress, boolean isEncrypted);
 
-        void fileDidUploaded(String location, TLRPC.InputFile inputFile, TLRPC.InputEncryptedFile inputEncryptedFile, byte[] key, byte[] iv);
+        void fileDidUploaded(String location, TLRPC.InputFile inputFile, TLRPC.InputEncryptedFile inputEncryptedFile, byte[] key, byte[] iv, long totalFileSize);
 
         void fileDidFailedUpload(String location, boolean isEncrypted);
 
@@ -106,6 +107,7 @@ public class FileLoader {
                 }
                 uploadSizes.remove(location);
                 if (operation != null) {
+                    uploadOperationPathsEnc.remove(location);
                     uploadOperationQueue.remove(operation);
                     uploadSmallOperationQueue.remove(operation);
                     operation.cancel();
@@ -169,7 +171,7 @@ public class FileLoader {
                 }
                 operation.delegate = new FileUploadOperation.FileUploadOperationDelegate() {
                     @Override
-                    public void didFinishUploadingFile(FileUploadOperation operation, final TLRPC.InputFile inputFile, final TLRPC.InputEncryptedFile inputEncryptedFile, final byte[] key, final byte[] iv) {
+                    public void didFinishUploadingFile(final FileUploadOperation operation, final TLRPC.InputFile inputFile, final TLRPC.InputEncryptedFile inputEncryptedFile, final byte[] key, final byte[] iv) {
                         fileLoaderQueue.postRunnable(new Runnable() {
                             @Override
                             public void run() {
@@ -198,7 +200,7 @@ public class FileLoader {
                                     }
                                 }
                                 if (delegate != null) {
-                                    delegate.fileDidUploaded(location, inputFile, inputEncryptedFile, key, iv);
+                                    delegate.fileDidUploaded(location, inputFile, inputEncryptedFile, key, iv, operation.getTotalFileSize());
                                 }
                             }
                         });
